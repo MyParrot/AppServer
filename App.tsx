@@ -1,11 +1,10 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-// import HomeScreen from './pages/Home';
 import RealTimeVideo from './pages/RealTimeVideo';
-// import Call911 from './pages/Call911';
-// import LeftScreen from './pages/LeftScreen';
-// import RightScreen from './pages/RightScreen';
+import Report112 from './pages/Report112';
+import Pedometer from './pages/Pedometer';
+import Album from './pages/Album';
 
 const Stack = createNativeStackNavigator();
 
@@ -13,11 +12,10 @@ export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator initialRouteName="RealTimeVideo" screenOptions={{ headerShown: false }}>
-        {/* /<Stack.Screen name="Home" component={HomeScreen} /> */}
         <Stack.Screen name="RealTimeVideo" component={RealTimeVideo} />
-        {/* <Stack.Screen name="Call911" component={Call911} />
-        <Stack.Screen name="LeftScreen" component={LeftScreen} />
-        <Stack.Screen name="RightScreen" component={RightScreen} /> */}
+        <Stack.Screen name="Report112" component={Report112} />
+        <Stack.Screen name="Pedometer" component={Pedometer} />
+        <Stack.Screen name="Album" component={Album} />
       </Stack.Navigator>
     </NavigationContainer>
   );

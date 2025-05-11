@@ -1,79 +1,98 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, Text } from 'react-native';
-import { Camera, useCameraDevices, getCameraDevice } from 'react-native-vision-camera';
-import { captureRef } from 'react-native-view-shot';
+import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { Camera, useCameraDevices, getCameraDevice, PhotoFile } from 'react-native-vision-camera';
 import { useIsFocused } from '@react-navigation/native';
+import { readFile } from 'react-native-fs';
+import { useNavigation } from '@react-navigation/native';
+
+interface AIResponse {
+  status: string;
+  summary?: string;
+  s3_url?: string;
+}
 
 export default function RealTimeVideo() {
   const [hasPermission, setHasPermission] = useState(false);
+  const [aiResult, setAiResult] = useState<AIResponse | null>(null);
+  const prevSummaryRef = useRef<string | null>(null);
   const cameraRef = useRef<Camera>(null);
-  const viewRef = useRef(null);
   const isFocused = useIsFocused();
   const devices = useCameraDevices();
   const device = getCameraDevice(devices, 'back');
+  const navigation = useNavigation();
 
-  // 1. 권한 확인 및 요청
+  // 1. 권한 요청
   useEffect(() => {
     (async () => {
-      const current = await Camera.getCameraPermissionStatus();
-      console.log('현재 권한 상태:', current);
-
-      if (current !== 'authorized') {
-        const request = await Camera.requestCameraPermission();
-        console.log('요청 후 권한 상태:', request);
-        setHasPermission(request === 'authorized' || request === 'granted');
-      } else {
-        setHasPermission(true);
-      }
+      const status = await Camera.requestCameraPermission();
+      setHasPermission(status === 'authorized' || status === 'granted');
     })();
   }, []);
 
-  // 2. 0.3초마다 프레임 전송
+  // 2. 일정 주기마다 사진 촬영 및 서버 전송
   useEffect(() => {
     let interval: NodeJS.Timer;
-    if (hasPermission && isFocused && viewRef.current) {
-      interval = setInterval(() => {
-        captureRef(viewRef, {
-          format: 'jpg',
-          quality: 0.8,
-          result: 'base64',
-        })
-          .then(base64 => sendFrameToServer(`data:image/jpeg;base64,${base64}`))
-          .catch(console.error);
-      }, 300);
+
+    const takeAndSendPhoto = async () => {
+      if (!cameraRef.current) return;
+
+      try {
+        const photo: PhotoFile = await cameraRef.current.takePhoto({
+          qualityPrioritization: 'speed',
+        });
+
+        const base64 = await readFile(photo.path, 'base64');
+        await sendFrameToServer(`data:image/jpeg;base64,${base64}`);
+        console.log('사진 전송 완료');
+      } catch (error) {
+        console.error('사진 촬영 또는 전송 실패:', error);
+      }
+    };
+
+    if (hasPermission && isFocused) {
+      interval = setInterval(takeAndSendPhoto, 1000);
     }
+
     return () => clearInterval(interval);
   }, [hasPermission, isFocused]);
 
-  // 3. 프레임 서버 전송
-  const sendFrameToServer = (base64Data: string) => {
-    fetch('http://localhost:5000/upload_frame', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: base64Data }),
-    })
-      .then(() => console.log('전송 완료'))
-      .catch(console.error);
+  const sendFrameToServer = async (base64Data: string) => {
+    try {
+      const response = await fetch('/upload_frame', { // server address
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64Data }),
+      });
+  
+      const data: AIResponse = await response.json();
+      if (data.status === 'success' && data.summary && data.summary !== prevSummaryRef.current) {
+        setAiResult(data);
+        prevSummaryRef.current = data.summary;
+      }
+    } catch (error) {
+      console.error('서버 응답 실패:', error);
+    }
   };
-
-  // 4. 디버깅용 로그
-  useEffect(() => {
-    console.log('useCameraDevices():', devices);
-    console.log('device:', device);
-    console.log('hasPermission:', hasPermission);
-    console.log('isFocused:', isFocused);
-  }, [devices, device, hasPermission, isFocused]);
+  
 
   if (!hasPermission) {
-    return <View style={styles.container}><Text>카메라 권한 없음</Text></View>;
+    return (
+      <View style={styles.container}>
+        <Text>카메라 권한 없음</Text>
+      </View>
+    );
   }
 
   if (!device) {
-    return <View style={styles.container}><Text>카메라 장치 로딩 중...</Text></View>;
+    return (
+      <View style={styles.container}>
+        <Text>카메라 장치 로딩 중...</Text>
+      </View>
+    );
   }
 
   return (
-    <View style={styles.container} ref={viewRef}>
+    <View style={styles.container}>
       <Camera
         ref={cameraRef}
         device={device}
@@ -81,8 +100,36 @@ export default function RealTimeVideo() {
         style={StyleSheet.absoluteFill}
         photo={true}
       />
-      <Text style={styles.label}>실시간 프레임 전송 중...</Text>
-    </View>
+      <Text style={styles.label}>사진 캡처 중...</Text>
+      
+      {aiResult?.status === 'success' && aiResult.summary && (
+        <View style={styles.resultBox}>
+          <Text style={styles.resultText}>{aiResult.summary}</Text>
+        </View>
+      )}
+      
+      <View style={styles.navBar}>
+        <TouchableOpacity
+          style={styles.navButton}
+          onPress={() => navigation.navigate('Report112')}
+          accessibilityLabel="긴급 신고 이동">
+          <Text style={styles.navButtonText}>긴급 신고
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.navButton}
+          onPress={() => navigation.navigate('Pedometer')}
+          accessibilityLabel="만보기 이동">
+          <Text style={styles.navButtonText}>만보기</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.navButton}
+          onPress={() => navigation.navigate('Album')}
+          accessibilityLabel="앨범 이동">
+          <Text style={styles.navButtonText}>앨범</Text>
+        </TouchableOpacity>
+      </View>
+    </View>    
   );
 }
 
@@ -95,12 +142,46 @@ const styles = StyleSheet.create({
   },
   label: {
     position: 'absolute',
-    bottom: 40,
+    bottom: 150,
     color: '#fff',
     fontSize: 18,
     backgroundColor: 'rgba(0,0,0,0.5)',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
+  },
+  resultBox: {
+    position: 'absolute',
+    top: 40,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    padding: 10,
+    borderRadius: 8,
+  },
+  resultText: {
+    color: '#fff',
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  navBar: {
+    position: 'absolute',
+    bottom: 0,
+    backgroundColor: '#FFFFFF', 
+    width: '100%',
+    flexDirection: 'row',
+  },
+  navButton: {
+    flex: 1,
+    height: 130,
+    borderWidth: 10,
+    borderColor: '#FFFFFF',
+    backgroundColor: '#11264f', 
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 25,
+  },
+  navButtonText: {
+    color: '#FFD700',
+    fontSize: 25,
+    fontWeight: 'bold',
   },
 });
