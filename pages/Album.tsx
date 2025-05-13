@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { View, FlatList, Image, TouchableOpacity, Modal, StyleSheet, Dimensions, Text } from 'react-native';
 
-// 이미지 URI 배열 (나중에 서버 데이터로 교체)
 const images = [
   'https://images.unsplash.com/photo-1726064855836-6042eb0bc5da?q=80&w=2670&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDF8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
 ];

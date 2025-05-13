@@ -4,6 +4,7 @@ import { Camera, useCameraDevices, getCameraDevice, PhotoFile } from 'react-nati
 import { useIsFocused } from '@react-navigation/native';
 import { readFile } from 'react-native-fs';
 import { useNavigation } from '@react-navigation/native';
+import Tts from 'react-native-tts';
 
 interface AIResponse {
   status: string;
@@ -21,7 +22,6 @@ export default function RealTimeVideo() {
   const device = getCameraDevice(devices, 'back');
   const navigation = useNavigation();
 
-  // 1. 권한 요청
   useEffect(() => {
     (async () => {
       const status = await Camera.requestCameraPermission();
@@ -29,7 +29,6 @@ export default function RealTimeVideo() {
     })();
   }, []);
 
-  // 2. 일정 주기마다 사진 촬영 및 서버 전송
   useEffect(() => {
     let interval: NodeJS.Timer;
 
@@ -58,7 +57,7 @@ export default function RealTimeVideo() {
 
   const sendFrameToServer = async (base64Data: string) => {
     try {
-      const response = await fetch('/upload_frame', { // server address
+      const response = await fetch('/upload_frame', { // server address, http://ipaddress:5000/upload_frame
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: base64Data }),
@@ -68,6 +67,9 @@ export default function RealTimeVideo() {
       if (data.status === 'success' && data.summary && data.summary !== prevSummaryRef.current) {
         setAiResult(data);
         prevSummaryRef.current = data.summary;
+
+        Tts.stop();
+        Tts.speak(data.summary);
       }
     } catch (error) {
       console.error('서버 응답 실패:', error);
@@ -100,7 +102,6 @@ export default function RealTimeVideo() {
         style={StyleSheet.absoluteFill}
         photo={true}
       />
-      <Text style={styles.label}>사진 캡처 중...</Text>
       
       {aiResult?.status === 'success' && aiResult.summary && (
         <View style={styles.resultBox}>
@@ -113,8 +114,7 @@ export default function RealTimeVideo() {
           style={styles.navButton}
           onPress={() => navigation.navigate('Report112')}
           accessibilityLabel="긴급 신고 이동">
-          <Text style={styles.navButtonText}>긴급 신고
-          </Text>
+          <Text style={styles.navButtonText}>긴급 신고</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.navButton}
