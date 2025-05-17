@@ -5,6 +5,8 @@ import { useIsFocused } from '@react-navigation/native';
 import { readFile } from 'react-native-fs';
 import { useNavigation } from '@react-navigation/native';
 import Tts from 'react-native-tts';
+import { stat } from 'react-native-fs';
+import ImageResizer from 'react-native-image-resizer';
 
 interface AIResponse {
   status: string;
@@ -24,8 +26,13 @@ export default function RealTimeVideo() {
 
   useEffect(() => {
     (async () => {
-      const status = await Camera.requestCameraPermission();
-      setHasPermission(status === 'authorized' || status === 'granted');
+      try {
+        const status = await Camera.requestCameraPermission();
+        setHasPermission(status === 'authorized' || status === 'granted');
+      } catch (error) {
+        console.error("Failed to get camera permission:", error);
+        Alert.alert("Error", "Failed to get camera permission.");
+      }
     })();
   }, []);
 
@@ -38,13 +45,31 @@ export default function RealTimeVideo() {
       try {
         const photo: PhotoFile = await cameraRef.current.takePhoto({
           qualityPrioritization: 'speed',
+          flash: 'off',
+          skipMetadata: true,
         });
 
-        const base64 = await readFile(photo.path, 'base64');
+        console.log('Original resolution:', photo.width + ' x ' + photo.height);
+
+        const resized = await ImageResizer.createResizedImage(
+          photo.path,
+          640,
+          480,
+          'JPEG',
+          90
+        );
+
+        const info = await stat(resized.uri);
+        console.log('Resized file size:', (info.size / (1024 * 1024)).toFixed(2), 'MB');
+
+        const base64 = await readFile(resized.uri, 'base64');
+        console.log('Base64 size:', ((base64.length * 0.75) / (1024 * 1024)).toFixed(2), 'MB');
+
         await sendFrameToServer(`data:image/jpeg;base64,${base64}`);
-        console.log('사진 전송 완료');
+
+        console.log('Photo sent successfully');
       } catch (error) {
-        console.error('사진 촬영 또는 전송 실패:', error);
+        console.error('Failed to take/send photo:', error);
       }
     };
 
@@ -55,32 +80,39 @@ export default function RealTimeVideo() {
     return () => clearInterval(interval);
   }, [hasPermission, isFocused]);
 
-  const sendFrameToServer = async (base64Data: string) => {
+const sendFrameToServer = async (base64Data: string) => {
     try {
-      const response = await fetch('/upload_frame', { // server address, http://ipaddress:5000/upload_frame
+      const response = await fetch('https://api.hwangrock.com/upload_frame', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: base64Data }),
       });
-  
+
+      const contentType = response.headers.get('Content-Type');
+      console.log('Content-Type:', contentType);
+
       const data: AIResponse = await response.json();
+
       if (data.status === 'success' && data.summary && data.summary !== prevSummaryRef.current) {
         setAiResult(data);
         prevSummaryRef.current = data.summary;
 
-        Tts.stop();
-        Tts.speak(data.summary);
+        try {
+          Tts.stop();
+          Tts.speak(data.summary);
+        } catch (ttsError) {
+          console.error("Failed to speak result:", ttsError);
+        }
       }
     } catch (error) {
-      console.error('서버 응답 실패:', error);
+      console.error('Server did not respond or returned invalid data:', error);
     }
   };
-  
 
   if (!hasPermission) {
     return (
       <View style={styles.container}>
-        <Text>카메라 권한 없음</Text>
+        <Text>Camera permission denied</Text>
       </View>
     );
   }
@@ -88,7 +120,7 @@ export default function RealTimeVideo() {
   if (!device) {
     return (
       <View style={styles.container}>
-        <Text>카메라 장치 로딩 중...</Text>
+        <Text>Loading camera device...</Text>
       </View>
     );
   }
@@ -102,34 +134,34 @@ export default function RealTimeVideo() {
         style={StyleSheet.absoluteFill}
         photo={true}
       />
-      
+
       {aiResult?.status === 'success' && aiResult.summary && (
         <View style={styles.resultBox}>
           <Text style={styles.resultText}>{aiResult.summary}</Text>
         </View>
       )}
-      
+
       <View style={styles.navBar}>
         <TouchableOpacity
           style={styles.navButton}
-          onPress={() => navigation.navigate('Report112')}
-          accessibilityLabel="긴급 신고 이동">
-          <Text style={styles.navButtonText}>긴급 신고</Text>
+          onPress={() => navigation.navigate('EmergencyCall')}
+          accessibilityLabel="Go to emergency call">
+          <Text style={styles.navButtonText}>Emergency{'\n'}Call</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.navButton}
           onPress={() => navigation.navigate('Pedometer')}
-          accessibilityLabel="만보기 이동">
-          <Text style={styles.navButtonText}>만보기</Text>
+          accessibilityLabel="Go to pedometer">
+          <Text style={styles.navButtonText}>Pedometer</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.navButton}
           onPress={() => navigation.navigate('Album')}
-          accessibilityLabel="앨범 이동">
-          <Text style={styles.navButtonText}>앨범</Text>
+          accessibilityLabel="Go to album">
+          <Text style={styles.navButtonText}>Album</Text>
         </TouchableOpacity>
       </View>
-    </View>    
+    </View>
   );
 }
 
@@ -180,8 +212,9 @@ const styles = StyleSheet.create({
     borderRadius: 25,
   },
   navButtonText: {
+    textAlign: 'center',
     color: '#FFD700',
-    fontSize: 25,
+    fontSize: 20,
     fontWeight: 'bold',
   },
 });

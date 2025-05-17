@@ -18,6 +18,7 @@
     "react-native-gesture-handler": "^2.25.0",
     "react-native-google-fit": "^0.21.0",
     "react-native-health-connect": "^3.3.2",
+    "react-native-image-resizer": "^1.4.5",
     "react-native-safe-area-context": "^5.3.0",
     "react-native-screens": "^4.10.0",
     "react-native-sensors": "^7.3.6",

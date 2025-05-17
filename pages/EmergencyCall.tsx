@@ -1,11 +1,20 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Linking, Alert } from 'react-native';
 
-export default function Report112() {
-  const makeCall = (number: string) => {
-    Linking.openURL(`tel:${number}`).catch(() =>
-      Alert.alert('전화 연결 실패', '이 기기에서는 전화를 걸 수 없습니다.')
-    );
+export default function EmergencyCall() {
+  const makeCall = async (number: string) => {
+    try {
+      const supported = await Linking.canOpenURL(`tel:${number}`);
+      if (!supported) {
+        Alert.alert('Not Supported', 'This device cannot make phone calls.');
+        return;
+      }
+
+      await Linking.openURL(`tel:${number}`);
+    } catch (error) {
+      console.error('Error while trying to make a call:', error);
+      Alert.alert('Call Failed', 'Call failed. Please check your phone settings.');
+    }
   };
 
   return (
@@ -14,14 +23,14 @@ export default function Report112() {
         style={[styles.button, { backgroundColor: '#d32f2f' }]}
         onPress={() => makeCall('112')}
       >
-        <Text style={styles.buttonText}>112 신고</Text>
+        <Text style={styles.buttonText}>Call 112</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
         style={[styles.button, { backgroundColor: '#f57c00' }]}
         onPress={() => makeCall('119')}
       >
-        <Text style={styles.buttonText}>119 신고</Text>
+        <Text style={styles.buttonText}>Call 119</Text>
       </TouchableOpacity>
     </View>
   );

@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { View, FlatList, Image, TouchableOpacity, Modal, StyleSheet, Dimensions, Text } from 'react-native';
+import { View, FlatList, Image, TouchableOpacity, Modal, StyleSheet, Dimensions, Text, Alert } from 'react-native';
 
 const images = [
-  'https://images.unsplash.com/photo-1726064855836-6042eb0bc5da?q=80&w=2670&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDF8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+  'https://images.unsplash.com/photo-1744383504150-43ab67498b15?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+  'https://images.unsplash.com/photo-1744383504150-43ab67498b15?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+  'https://images.unsplash.com/photo-1744383504150-43ab67498b15?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
 ];
 
 export default function AlbumScreen() {
@@ -11,8 +13,14 @@ export default function AlbumScreen() {
   const numColumns = 3;
 
   const openModal = (uri: string) => {
-    setSelectedUri(uri);
-    setModalVisible(true);
+    try {
+      if (!uri) throw new Error("Invalid image URI");
+      setSelectedUri(uri);
+      setModalVisible(true);
+    } catch (error) {
+      console.error("Error in openModal:", error);
+      Alert.alert("Error", "Failed to open the image.");
+    }
   };
 
   const closeModal = () => {
@@ -20,15 +28,29 @@ export default function AlbumScreen() {
     setSelectedUri(null);
   };
 
-  const renderItem = ({ item }: { item: string }) => (
-    <TouchableOpacity
-      style={styles.thumbContainer}
-      onPress={() => openModal(item)}
-      accessibilityLabel="사진 크게 보기"
-    >
-      <Image source={{ uri: item }} style={styles.thumbnail} />
-    </TouchableOpacity>
-  );
+  const renderItem = ({ item }: { item: string }) => {
+    try {
+      return (
+        <TouchableOpacity
+          style={styles.thumbContainer}
+          onPress={() => openModal(item)}
+          accessibilityLabel="View Full Image"
+        >
+          <Image
+            source={{ uri: item }}
+            style={styles.thumbnail}
+            onError={() => {
+              console.warn("Failed to load thumbnail image.");
+              Alert.alert("Error", "Unable to load the image.");
+            }}
+          />
+        </TouchableOpacity>
+      );
+    } catch (error) {
+      console.error("Error in renderItem:", error);
+      return null;
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -47,11 +69,21 @@ export default function AlbumScreen() {
       >
         <View style={styles.modalBackground}>
           <TouchableOpacity style={styles.closeArea} onPress={closeModal} />
-          {selectedUri && (
-            <Image source={{ uri: selectedUri }} style={styles.fullImage} />
+          {selectedUri ? (
+            <Image
+              source={{ uri: selectedUri }}
+              style={styles.fullImage}
+              onError={() => {
+                console.warn("Failed to load full image.");
+                Alert.alert("Error", "Unable to load the full image.");
+                closeModal();
+              }}
+            />
+          ) : (
+            <Text style={{ color: 'white' }}>Image not available.</Text>
           )}
           <TouchableOpacity style={styles.closeButton} onPress={closeModal}>
-            <Text style={styles.closeText}>닫기</Text>
+            <Text style={styles.closeText}>Close</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -84,9 +116,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   fullImage: {
-  width: '100%',
-  height: '100%',
-  resizeMode: 'contain',
+    width: '100%',
+    height: '100%',
+    resizeMode: 'contain',
   },
   closeArea: {
     position: 'absolute',
